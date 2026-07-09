@@ -1,30 +1,39 @@
-using System;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    // take players movement intent (store intent) and convert it to an actual movement
+    // Takes the player's movement intent and converts it into horizontal movement.
 
+    [Header("Horizontal Movement")]
     [SerializeField] private float moveSpeed = 8f;
-    [SerializeField] private float jumpForce = 10f;
-    [SerializeField] private float dashSpeed = 5f;
 
-    [SerializeField] private float coyoteTime = 0.2f; // grace period for jump
-    private float coyoteTimer;
+    [SerializeField] private float groundAcceleration = 50f;
+    [SerializeField] private float groundDeceleration = 60f;
+
+    [SerializeField] private float airAcceleration = 20f;
+    [SerializeField] private float airDeceleration = 25f;
+
+    private float currentSpeed;
+    private float targetSpeed;
+
+    [Header("Jump Settings")]
+    [SerializeField] private float jumpForce = 10f;
+    [SerializeField] private float coyoteTime = 0.2f;
     [SerializeField] private float jumpBufferTime = 0.15f;
+
+    private float coyoteTimer;
     private float jumpBufferTimer;
+
+    [Header("Ground Check")]
+    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private float groundCheckRadius = 0.15f;
 
     public int FacingDirection { get; private set; } = 1;
     public bool IsGrounded { get; private set; }
+
     private bool wasGrounded;
     private bool jumpReduced;
     private bool isJumping;
-
-    [Header("Ground Check")]
-    //[SerializeField] private Transform groundCheck;
-    [SerializeField] private LayerMask groundLayer;
-    [SerializeField] private float groundCheckRadius = 0.15f;
 
     private Player player;
 
@@ -44,14 +53,60 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        Move();
         CheckFlip();
+
+        CalculateTargetSpeed();
+        ApplyAcceleration();
+        ApplyVelocity();
     }
 
-    private void Move()
+    //private void Move()
+    //{
+    //    Vector2 velocity = player.RB.linearVelocity;
+    //    velocity.x = player.Input.MoveInput.x * moveSpeed;
+    //    player.RB.linearVelocity = velocity;
+    //}
+
+    private void CalculateTargetSpeed()
+    {
+        targetSpeed = player.Input.MoveInput.x * moveSpeed;
+    }
+
+    private float GetAccelerationRate()
+    {
+        if (IsGrounded)
+        {
+            if (currentSpeed < targetSpeed)
+            {
+                return groundAcceleration;
+            }
+            else
+            {
+                return groundDeceleration;
+            }
+        }
+        else
+        {
+            if (currentSpeed < targetSpeed)
+            {
+                return airAcceleration;
+            }
+            else
+            {
+                return airDeceleration;
+            }
+        }
+    }
+
+    private void ApplyAcceleration()
+    {
+        currentSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, GetAccelerationRate() * Time.fixedDeltaTime);
+    }
+
+    private void ApplyVelocity()
     {
         Vector2 velocity = player.RB.linearVelocity;
-        velocity.x = player.Input.MoveInput.x * moveSpeed;
+        velocity.x = currentSpeed;
         player.RB.linearVelocity = velocity;
     }
 
@@ -77,14 +132,12 @@ public class PlayerMovement : MonoBehaviour
 
         IsGrounded = Physics2D.OverlapCircle(player.GroundCheck.position, groundCheckRadius, groundLayer);
 
-        // Reset jump state when grounded
         if (IsGrounded)
         {
             jumpReduced = false;
             isJumping = false;
         }
 
-        // Set coyote timer when leaving ground
         if (wasGrounded && !IsGrounded)
         {
             coyoteTimer = coyoteTime;
@@ -97,7 +150,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleJump()
     {
-        if ((IsGrounded || coyoteTimer > 0f) && jumpBufferTimer > 0f && !isJumping)
+        if (CanJump() && jumpBufferTimer > 0f && !isJumping)
         {
             Jump();
             jumpBufferTimer = 0f;
@@ -106,7 +159,7 @@ public class PlayerMovement : MonoBehaviour
 
     private void HandleVariableJump()
     {
-        if (!player.Input.JumpHeld && player.RB.linearVelocity.y > 0 && !IsGrounded)
+        if (!player.Input.JumpHeld && player.RB.linearVelocity.y > 0 && !IsGrounded && !jumpReduced)
         {
             Vector2 velocity = player.RB.linearVelocity;
             velocity.y *= 0.75f;
@@ -124,7 +177,7 @@ public class PlayerMovement : MonoBehaviour
             jumpBufferTimer = jumpBufferTime;
             player.Input.ConsumeJumpInput();
         }
-        else if (jumpBufferTimer > 0)
+        else if (jumpBufferTimer > 0f)
         {
             jumpBufferTimer -= Time.deltaTime;
         }

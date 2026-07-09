@@ -743,8 +743,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   moveSpeed: 8
+  groundAcceleration: 45
+  groundDeceleration: 60
+  airAcceleration: 25
+  airDeceleration: 30
   jumpForce: 10
-  dashSpeed: 5
   coyoteTime: 0.2
   jumpBufferTime: 0.15
   groundLayer:
